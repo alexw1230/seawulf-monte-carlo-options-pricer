@@ -4,10 +4,15 @@
 #SBATCH -N 2
 #SBATCH -n 8
 #SBATCH -t 00:05:00
-#SBATCH -o mpi_test_%j.out
-#SBATCH -e mpi_test_%j.err
+#SBATCH -o HPC_Logs/mpi_test_%j.out
+#SBATCH -e HPC_Logs/mpi_test_%j.err
 
+#Clear out the module bay
 module purge
+
+#Load needed modules
+module load slurm
 module load mpi4py/latest
 
-mpirun -n $SLURM_NTASKS python3 MPIBasicTest/mpi_test.py
+#Execute
+mpirun -n $SLURM_NTASKS python3 src/MPIBasicTest/mpi_test.py
