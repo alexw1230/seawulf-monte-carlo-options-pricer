@@ -5,13 +5,13 @@
 #SBATCH --job-name=mpi_hello
 
 #Partition
-#SBATCH -p short-40core
+#SBATCH -p short-96core
 
 #Number of compute nodes
-#SBATCH -N 2
+#SBATCH --nodes=2
 
 #Number of slurm jobs per node
-#SBATCH -n 8
+#SBATCH --ntasks-per-node=96
 
 #Wall time limit
 #SBATCH -t 00:05:00
