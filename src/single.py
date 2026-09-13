@@ -23,8 +23,8 @@ def calculate_payoffs(k, st, u, t):
     #Calculates expected payoff, including discount factor
 
     #Payoffs
-    call = max(st-k,0.0) #Excersise the call option vs don't
-    put = max(k-st,0.0) #Excersise the put option vs don't
+    call = np.maximum(st-k,0.0) #Excersise the call option vs don't
+    put = np.maximum(k-st,0.0) #Excersise the put option vs don't
 
     #discount factor
     disc_fact = np.exp(-u*t)
