@@ -10,4 +10,4 @@
 module purge
 module load mpi4py/latest
 
-mpirun -n $SLURM_NTASKS python3 ../MPIBasicTest/mpi_test.py
+mpirun -n $SLURM_NTASKS python3 MPIBasicTest/mpi_test.py
