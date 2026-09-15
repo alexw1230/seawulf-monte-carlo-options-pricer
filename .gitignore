@@ -5,4 +5,5 @@ __pycache__/
 venv/
 env/
 ENV/
-HPC_Logs/
+HPC_Logs/*
+!HPC_Logs/.gitkeep

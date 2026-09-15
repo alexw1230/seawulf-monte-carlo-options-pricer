@@ -55,7 +55,7 @@ def combine_stats(n, call_sum, call_sumsq, put_sum, put_sumsq):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n", type=int, default=10000000,
+    parser.add_argument("--n", type=int, default=1000000000000,
                         help="total number of simulations across all ranks")
     parser.add_argument("--batch", type=int, default=1000000,
                         help="trials per batch within a rank")
