@@ -18,7 +18,7 @@ In this project, I implemented three versions of the same underlying model, so t
 
 ## Algorithm Structure ##
 
-### Core Model ###
+### Core Math ###
 
 Every implementation is built on the same two core pricing functions (see `src/Simulations/single.py`). The code works in both single operation cases and multi-operation cases since it's built entirely out of elementwise
 NumPy operations, with no Python functions that assumes a scalar input.
@@ -47,6 +47,8 @@ estimate is the mean of the discounted payoff across N independent trials, with 
 - **Vectorized**: draw all `N` values of `Z` as one array and call both functions once on the whole array.
 
 ### Parallel ###
+
+![Dataflow1](/Images/Dataflow1.png)
 
 ```
 P = number of ranks
