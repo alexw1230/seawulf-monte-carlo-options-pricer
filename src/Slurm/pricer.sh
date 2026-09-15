@@ -13,4 +13,4 @@ module load mpi4py/latest
 
 cd src
 
-mpirun -n $SLURM_NTASKS python3 Seawulf/pricer.py
+mpirun -n $SLURM_NTASKS python3 -m Seawulf.pricer
