@@ -97,8 +97,8 @@ def main():
     elapsed_comm = time.perf_counter() - start_comm
 
     #We care about the worst time
-    max_compute_t = comm.reduce(elapsed_comm,op=MPI.MAX,root=0)
-    max_comm_t = comm.reduce(elapsed_compute, op=MPI.MAX, root=0)
+    max_compute_t = comm.reduce(elapsed_compute,op=MPI.MAX,root=0)
+    max_comm_t = comm.reduce(elapsed_comm, op=MPI.MAX, root=0)
 
     #Only do these computations and prints on rank 0
     if rank == 0:
