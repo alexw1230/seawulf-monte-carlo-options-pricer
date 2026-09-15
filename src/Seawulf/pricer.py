@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import argparse
 from mpi4py import MPI
 from Simulations.single import calculate_st, calculate_payoffs
 
@@ -11,17 +12,33 @@ def chunk_size(n_total, size, rank):
     return base + 1 if rank < remainder else base
 
 
-def run_chunk(so, k, u, sig, t, n, rng):
+def run_chunk(so, k, u, sig, t, n, rng, batch=1000000):
     #See single py for logic
-    Z = rng.standard_normal(n)
-    st = calculate_st(so, k, u, sig, t, Z)
-    call_disc, put_disc = calculate_payoffs(k, st, u, t)
+    total = 0
+    call_sum = call_sumsq = 0.0
+    put_sum = put_sumsq = 0.0
+ 
+    remaining = n
+    #Added batching for peak memory issues
+    while remaining > 0:
+        b = min(batch, remaining)
+        Z = rng.standard_normal(b)
+        st = calculate_st(so, k, u, sig, t, Z)
+        call_disc, put_disc = calculate_payoffs(k, st, u, t)
+ 
+        total += b
+        call_sum += float(call_disc.sum())
+        call_sumsq += float(np.sum(call_disc**2))
+        put_sum += float(put_disc.sum())
+        put_sumsq += float(np.sum(put_disc**2))
+        remaining -= b
+ 
     return {
-        "n": n,
-        "call_sum": float(call_disc.sum()),
-        "call_sumsq": float(np.sum(call_disc**2)),
-        "put_sum": float(put_disc.sum()),
-        "put_sumsq": float(np.sum(put_disc**2)),
+        "n": total,
+        "call_sum": call_sum,
+        "call_sumsq": call_sumsq,
+        "put_sum": put_sum,
+        "put_sumsq": put_sumsq,
     }
 
 
@@ -37,17 +54,26 @@ def combine_stats(n, call_sum, call_sumsq, put_sum, put_sumsq):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--n", type=int, default=10000000,
+                        help="total number of simulations across all ranks")
+    parser.add_argument("--batch", type=int, default=1000000,
+                        help="trials per batch within a rank")
+    parser.add_argument("--seed", type=int, default=30)
+    args = parser.parse_args()
+
+
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
 
+    N = args.n
+
     # Test Parameters
     S0, K, R, SIG, T = 100.0, 100.0, 0.05, 0.20, 1.0
-    N = 10000000
-    BASE_SEED = 30
 
     # Seed sequence to ensure a distinct random seed is always used for each ranks
-    seed_seq = np.random.SeedSequence(BASE_SEED)
+    seed_seq = np.random.SeedSequence(args.seed)
     child_seeds = seed_seq.spawn(size)
     rng = np.random.default_rng(child_seeds[rank])
 
@@ -57,18 +83,22 @@ def main():
     comm.Barrier() #Wait for completed operation
     start = time.perf_counter() #Start the clock
     local = run_chunk(S0, K, R, SIG, T, n_chunk, rng) #Execute
-    comm.Barrier() #Wait for completed operation
-    elapsed = time.perf_counter() - start #Calculate time
+    elapsed_compute = time.perf_counter() - start #Calculate time
 
+    comm.Barrier() #Wait for completed operation
+
+    start_comm = time.perf_counter()
     #gather up all the data from the different workers back into the root process
     total_n = comm.reduce(local["n"], op=MPI.SUM, root=0)
     total_call_sum = comm.reduce(local["call_sum"], op=MPI.SUM, root=0)
     total_call_sumsq = comm.reduce(local["call_sumsq"], op=MPI.SUM, root=0)
     total_put_sum = comm.reduce(local["put_sum"], op=MPI.SUM, root=0)
     total_put_sumsq = comm.reduce(local["put_sumsq"], op=MPI.SUM, root=0)
+    elapsed_comm = time.perf_counter() - start_comm
 
     #We care about the worst time
-    max_elapsed = comm.reduce(elapsed, op=MPI.MAX, root=0)
+    max_compute_t = comm.reduce(elapsed_comm,op=MPI.MAX,root=0)
+    max_comm_t = comm.reduce(elapsed_compute, op=MPI.MAX, root=0)
 
     #Only do these computations and prints on rank 0
     if rank == 0:
@@ -84,7 +114,9 @@ def main():
               f"95% CI: [{call_ci[0]:.4f}, {call_ci[1]:.4f}]")
         print(f"Put price  = {put_price:.4f}  (SE={put_se:.4f})  "
               f"95% CI: [{put_ci[0]:.4f}, {put_ci[1]:.4f}]")
-        print(f"Runtime = {max_elapsed:.4f} sec")
+        print(f"Compute Time = {max_compute_t:.4f} sec")
+        print(f"Communication Time = {max_comm_t:.4f} sec")
+        print(f"Total Time = {max_compute_t+max_comm_t:.4f} sec")
 
 
 if __name__ == "__main__":
