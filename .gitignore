@@ -7,3 +7,5 @@ env/
 ENV/
 HPC_Logs/*
 !HPC_Logs/.gitkeep
+**/__pycache__/
+*.pyc
