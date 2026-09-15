@@ -11,4 +11,6 @@ module purge
 module load slurm
 module load mpi4py/latest
 
-mpirun -n $SLURM_NTASKS python3 src/Seawulf/pricer.py
+cd src
+
+mpirun -n $SLURM_NTASKS python3 Seawulf/pricer.py
