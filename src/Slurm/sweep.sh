@@ -13,7 +13,7 @@ module load mpi4py/latest
 cd src
 
 P=$SLURM_NTASKS
-RESULTS=../results_P${P}.csv
+RESULTS=../csv/results_P${P}.csv
 
 N_VALUES=(100000 1000000 10000000 100000000 1000000000 10000000000)
  
