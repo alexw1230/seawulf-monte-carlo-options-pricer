@@ -60,6 +60,7 @@ def main():
     parser.add_argument("--batch", type=int, default=1000000,
                         help="trials per batch within a rank")
     parser.add_argument("--seed", type=int, default=30)
+    parser.add_argument("--csv", action="store_true", help="print data into csv row")
     args = parser.parse_args()
 
 
@@ -107,16 +108,22 @@ def main():
         )
         call_ci = (call_price - 1.96 * call_se, call_price + 1.96 * call_se)
         put_ci = (put_price - 1.96 * put_se, put_price + 1.96 * put_se)
-
-        print(f"Ranks (P) = {size}")
-        print(f"N = {total_n}")
-        print(f"Call price = {call_price:.4f}  (SE={call_se:.4f})  "
-              f"95% CI: [{call_ci[0]:.4f}, {call_ci[1]:.4f}]")
-        print(f"Put price  = {put_price:.4f}  (SE={put_se:.4f})  "
-              f"95% CI: [{put_ci[0]:.4f}, {put_ci[1]:.4f}]")
-        print(f"Compute Time = {max_compute_t:.4f} sec")
-        print(f"Communication Time = {max_comm_t:.4f} sec")
-        print(f"Total Time = {max_compute_t+max_comm_t:.4f} sec")
+        if args.csv:
+            # P,N,call,call_se,put,put_se,compute_s,comm_s,total_s
+            print(f"{size},{total_n},{call_price:.6f},{call_se:.6f},"
+                  f"{put_price:.6f},{put_se:.6f},"
+                  f"{max_compute_t:.6f},{max_comm_t:.6f},{max_compute_t+max_comm_t:.6f}")
+        else:
+            #human readable
+            print(f"Ranks (P) = {size}")
+            print(f"N = {total_n}")
+            print(f"Call price = {call_price:.4f}  (SE={call_se:.4f})  "
+                f"95% CI: [{call_ci[0]:.4f}, {call_ci[1]:.4f}]")
+            print(f"Put price  = {put_price:.4f}  (SE={put_se:.4f})  "
+                f"95% CI: [{put_ci[0]:.4f}, {put_ci[1]:.4f}]")
+            print(f"Compute Time = {max_compute_t:.4f} sec")
+            print(f"Communication Time = {max_comm_t:.4f} sec")
+            print(f"Total Time = {max_compute_t+max_comm_t:.4f} sec")
 
 
 if __name__ == "__main__":
