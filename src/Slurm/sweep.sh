@@ -16,8 +16,9 @@ P=$SLURM_NTASKS
 RESULTS=../csv/results_P${P}.csv
 
 N_VALUES=(100000 1000000 10000000 100000000 1000000000 10000000000)
- 
+REPEATS=5
 for N in "${N_VALUES[@]}"; do
-    echo "$N"
-    mpirun -n $SLURM_NTASKS python3 -m Seawulf.pricer --n "$N" --csv >> "$RESULTS"
+    for i in $(seq 1 $REPEATS); do
+        mpirun -n $SLURM_NTASKS python3 -m Seawulf.pricer --n "$N" --csv >> "$RESULTS"
+    done
 done
