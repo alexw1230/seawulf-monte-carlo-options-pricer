@@ -138,10 +138,28 @@ mpirun -n $SLURM_NTASKS python3 -m Seawulf.pricer --n <N> --batch <BATCH> --seed
 ```
 `--n`, `--batch`, and `--seed` are optional (default to 10,000,000 / 1,000,000 / 30 respectively)
 
-## Quantitative Results ##
+## Results ##
 
-N/A
+During the experiment, I ran a full sweep over many values of N and P to test how different sizes of simulations ran on different numbers of nodes and cores. Each combination of N and P was repeated 5 times for accuracy. The sweep for each of the values was as follows:
+
+
+N = {$10^5$, $10^6$, $10^7$, $10^8$, $10^9$, $10^{10}$}
+
+P = {1, 2, 4, 8, 16, 32, 40, 96, 192}
+
+> Note the lower values of P represent a simple doubling of cores, while the latter 3 represent one full small core, one full large core, and two full large cores respectively.
+
+***Mathematical Validation***: In all runs tested, the value of the data fell within the 95% confidence interval of the closed-form Black-Scholes equation price used as a benchmark. Convergence to the Black-Scholes price can be seen below:
+![Convergence](/plotting/price_convergence.png)
+
 
 ## Computing Performance Metrics ##
 
-N/A
+### Runtime vs N ###
+![Runtime](/plotting/runtime_vs_N.png)
+
+### Speedup vs P ###
+![Speedup](/plotting/speedup_vs_P.png)
+
+### Parallel Efficency vs P ###
+![Efficency](/plotting/efficiency_vs_P.png)
