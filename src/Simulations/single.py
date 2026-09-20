@@ -1,5 +1,5 @@
 import numpy as np
-
+import math
 
 def calculate_st(so, k, u, sig, t, z):
     # s0 = original stock price
@@ -13,7 +13,7 @@ def calculate_st(so, k, u, sig, t, z):
     # expected direction (risk neutral since if sig = 0, drift = rt)
     # diffusion = sig*sqrt(t)*z
     # brownian motion, linear variance
-    diff = sig*np.sqrt(t)*z
+    diff = sig*math.sqrt(t)*z
 
     #st = s0*exp((u-0.5*sig^2)*t+sig*sqrt(t)*z)
 
@@ -27,7 +27,7 @@ def calculate_payoffs(k, st, u, t):
     put = np.maximum(k-st,0.0) #Excersise the put option vs don't
 
     #discount factor
-    disc_fact = np.exp(-u*t)
+    disc_fact = math.exp(-u*t)
     call_disc = disc_fact*call
     put_disc = disc_fact*put
     return (call_disc,put_disc)
