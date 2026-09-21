@@ -12,3 +12,5 @@ csv/*
 **/__pycache__/
 *.pyc
 combined_sweep.csv
+*.csv
+.DS_Store
