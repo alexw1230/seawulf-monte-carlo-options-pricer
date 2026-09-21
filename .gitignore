@@ -14,3 +14,4 @@ csv/*
 combined_sweep.csv
 *.csv
 .DS_Store
+/**/.DS_Store
