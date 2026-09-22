@@ -83,7 +83,7 @@ def main():
 
     comm.Barrier() #Wait for completed operation
     start = time.perf_counter() #Start the clock
-    local = run_chunk(S0, K, R, SIG, T, n_chunk, rng) #Execute
+    local = run_chunk(S0, K, R, SIG, T, n_chunk, rng, batch=args.batch) #Execute
     elapsed_compute = time.perf_counter() - start #Calculate time
 
     comm.Barrier() #Wait for completed operation
@@ -100,7 +100,14 @@ def main():
     #We care about the worst time
     max_compute_t = comm.reduce(elapsed_compute,op=MPI.MAX,root=0)
     max_comm_t = comm.reduce(elapsed_comm, op=MPI.MAX, root=0)
-
+    per_rank = comm.gather((MPI.Get_processor_name(), elapsed_compute), root=0)
+    if rank == 0:
+        import sys, statistics
+        hosts = {}
+        for h, t in per_rank:
+            hosts.setdefault(h, []).append(t)
+        print(" | ".join(f"{h}: n={len(v)} min={min(v):.2f} med={statistics.median(v):.2f} max={max(v):.2f}"
+                         for h, v in sorted(hosts.items())), file=sys.stderr)
     #Only do these computations and prints on rank 0
     if rank == 0:
         call_price, call_se, put_price, put_se = combine_stats(

@@ -11,11 +11,11 @@ module load mpi4py/latest
 cd src
 
 P=$SLURM_NTASKS
-RESULTS=../csv/f32_P${P}.csv
+RESULTS=../csv/hbm_f32_P${P}.csv
 echo "P,N,call,call_se,put,put_se,compute_s,comm_s,total_s" > "$RESULTS"
 
-N=10000000000
-REPEATS=5
+N=100000000000
+REPEATS=1
 
 for i in $(seq 1 $REPEATS); do
     mpirun -n $SLURM_NTASKS python3 -m Seawulf.pricer_32 --n "$N" --csv >> "$RESULTS"

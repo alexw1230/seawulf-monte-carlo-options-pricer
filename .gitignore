@@ -13,5 +13,9 @@ csv/*
 *.pyc
 combined_sweep.csv
 *.csv
+*.txt
+!requirements.txt
 .DS_Store
 /**/.DS_Store
+/final
+/src/Slurm/final
