@@ -110,7 +110,6 @@ seawulf-monte-carlo-options-pricer/
 │       
 ├── HPC_Logs/                  # Seawulf Logs
 ├── Images/                    # Images for README
-├── Plotting/                  # Plotting scripts
 │                               
 ├── README.md
 ├── .gitignore
