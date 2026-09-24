@@ -1,4 +1,4 @@
-# 📈🐺 Monte Carlo Parallel Accelerator 🐺📈 #
+# 📈🐺 Monte Carlo Options Pricer: Parallel Accelerator 🐺📈 #
 
 AMS 530 Project 1, Stony Brook Graduate School
 
