@@ -207,6 +207,22 @@ $Efficiency = \frac{\frac{T(1)}{T(P)}}{P}, Efficiency >= 0 *$
 
 From this data, it is clear that for P values up and to 48, we achieve near-linear scaling (94%+). However, when the full allocation of cores is utilized, efficiency appears to do far worse, only ~70% efficiency.
 
+> Note that throughout these runs, I have also measured communication time independently, and it has never exceeded more than 0.7% of runtime even in the worst cases. This makes sense since there is only communication at the beginning and end of the program, as it is an Embarrassignly Parallel task.
+
+Other lower values of N were also tested at various P
+
+Efficiency at various N
+
+| P | $10^{10}$ | $10^9$ | $10^8$ | $10^7$ |
+| -------- | -------- | -------- | -------- | -------- |
+| 1 | 1.00 | 1.00 | 1.00 | 1.00
+| 16 | 0.95 | 0.93 | 0.89 | 0.79
+| 32 | 0.95 | 0.93 | 0.87 | 0.64
+| 48 | 0.94 | 0.91 | 0.83 | 0.56
+| 96 | 0.70 | 0.69 | 0.60 | 0.30
+
+From this data, we can observe that efficency degrades sharply as N gets smaller, as overhead fixed costs become a larger portion of the total compute time.
+
 After implementing the lessons learned from the experiments in **Memory Bandwidth & Batching** and **Full Load & CPU Clock Throttling**, the final, best results are as follows:
 
 Once again, these are all using $N = 10^{10}$, batch = $3 * 10^4$, DDR5, `hbm-short-96core`. The efficiency score is calculated against T(1) with these same parameters.
@@ -221,7 +237,7 @@ Once again, these are all using $N = 10^{10}$, batch = $3 * 10^4$, DDR5, `hbm-sh
 | -------- | -------- | -------- | -------- |
 | 4 x 96 | 384 | **0.58** | 0.69
 
-### Best High Computer ($>= 2$ full nodes) ###
+### Best High Core Count ($>= 2$ full nodes) ###
 | Layout (Node x Core/Node) | Total Cores P | Time (s) | Efficiency | 
 | -------- | -------- | -------- | -------- |
 | 4 x 48 | 192 | **0.86** | **0.92**
@@ -263,3 +279,13 @@ Notice in **Single Node Scaling**, efficiency sharply dropped when $P > 48$ from
 | 4 x 96 | 384 | 0.58 | 0.69
 
 Notice how as the number of nodes increases, the efficiency barely changes. However, whenever we use full nodes it drops ~15-20% in terms of efficiency compared to half nodes of the same number of cores.
+
+I also ran a script to test the operational clock frequency at various values of P.
+
+| P | Freq (GHz) |
+| -------- | -------- |
+| 24 | 3.41
+| 48 | 3.06
+| 96 | 2.43
+
+This frequency drop explains the poorer performance of the larger values of P. This decrease is likely due to core temperature and/or power consumption getting too much and causing the CPU to throttle down as a safety measure. By splitting the load among more nodes, each core can run at a higher frequency and thus produce a higher speed. This explains the drop in efficency when more cores are used as in the benchmark, with the fewest number of cores, will have access to more node-level resources and thus will run better.
