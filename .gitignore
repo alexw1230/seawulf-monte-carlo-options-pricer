@@ -19,3 +19,5 @@ combined_sweep.csv
 /**/.DS_Store
 /final
 /src/Slurm/final
+*.out
+*.err
