@@ -1,4 +1,4 @@
-# 📈🐺 Monte Carlo Simulation Based Options Pricer for Seawulf 🐺📈 #
+# 📈🐺 Monte Carlo Parallel Accelerator 🐺📈 #
 
 AMS 530 Project 1, Stony Brook Graduate School
 
