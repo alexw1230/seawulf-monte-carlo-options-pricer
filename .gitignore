@@ -21,3 +21,4 @@ combined_sweep.csv
 /src/Slurm/final
 *.out
 *.err
+/gpu
