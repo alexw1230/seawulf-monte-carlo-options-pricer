@@ -23,7 +23,7 @@ Problem 1.4 (Contributed by A. W.)
 
 Objective: Design, implement, and evaluate an MPI-based Monte Carlo simulator for European option
 pricing under Geometric Brownian Motion (GBM). In your experiments, you use P processing cores to
-make N Monte Carlo trials, i.e., simulated price paths. You must select the appropriate P (big enough
+make N Monte Carlo trials, i.e., simulated prices. You must select the appropriate P (big enough
 and suitable numbers for the given computer cluster) and sufficiently large N to ensure the accuracy
 of the option price and sensible performance analysis.
 Key Requirements:
