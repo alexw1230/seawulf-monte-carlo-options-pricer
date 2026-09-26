@@ -1,14 +1,6 @@
-"""Monte Carlo option pricer as ONE fused GPU kernel.
-
-Run from src/:
-    python3 -m gpu.fused_pricer --n 10000000000          # readable output
-    python3 -m gpu.fused_pricer --n 10000000000 --csv    # one CSV row
-    python3 -m gpu.fused_pricer --check                  # compare to CPU reference
-
-Every thread generates its own random numbers (Philox, counter = trial pair
-index), computes both payoffs, and keeps four running sums in registers.
-GPU memory is touched only once per block, to write the block's sums. The
-algorithm is identical to philox_ref.py, which serves as the CPU reference.
+"""
+Every thread generates its own random numbers (Philox), computes both payoffs, and keeps four running sums in registers.
+GPU memory is touched only once per block, to write the block's sums. Identical algo in philox ref for cpu check.
 """
 import argparse
 import math
@@ -18,8 +10,7 @@ import cupy as cp
 import numpy as np
 
 S0, K, R, SIG, T = 100.0, 100.0, 0.05, 0.20, 1.0
-THREADS = 256           # threads per block (a multiple of the 32-thread warp)
-
+THREADS = 256
 KERNEL_SRC = r"""
 extern "C" __global__
 void mc_fused(const unsigned long long pair_start,   // first trial pair for this launch
@@ -33,14 +24,11 @@ void mc_fused(const unsigned long long pair_start,   // first trial pair for thi
     double cs = 0.0, cq = 0.0, ps = 0.0, pq = 0.0;
     const unsigned long long stride = (unsigned long long)gridDim.x * blockDim.x;
 
-    // Grid-stride loop: thread i handles pairs i, i + stride, i + 2*stride, ...
     for (unsigned long long p = pair_start + (unsigned long long)blockIdx.x * blockDim.x + threadIdx.x;
          p < pair_end; p += stride) {
 
-        // ---- Philox4x32-10: 4 random 32-bit words from (key, counter = p) ----
         unsigned int c0 = (unsigned int)p, c1 = (unsigned int)(p >> 32), c2 = 0u, c3 = 0u;
         unsigned int k0 = key0, k1 = key1;
-        #pragma unroll
         for (int r = 0; r < 10; ++r) {
             const unsigned int hi0 = __umulhi(0xD2511F53u, c0), lo0 = 0xD2511F53u * c0;
             const unsigned int hi1 = __umulhi(0xCD9E8D57u, c2), lo1 = 0xCD9E8D57u * c2;
@@ -49,19 +37,17 @@ void mc_fused(const unsigned long long pair_start,   // first trial pair for thi
             k0 += 0x9E3779B9u; k1 += 0xBB67AE85u;
         }
 
-        // ---- 2 uniform doubles (53 bits each) -> Box-Muller -> 2 normals ----
+        // 2 uniform doubles (53 bits each) - Box-Muller - 2 normals
         const double u1 = ((c0 >> 5) * 67108864.0 + (c1 >> 6) + 1.0) / 9007199254740992.0;  // (0,1]
         const double u2 = ((c2 >> 5) * 67108864.0 + (c3 >> 6)) / 9007199254740992.0;        // [0,1)
         const double rad = sqrt(-2.0 * log(u1));
         double sn, cn;
         sincospi(2.0 * u2, &sn, &cn);
 
-        // ---- trial 2p ----
         double st = s0 * exp(drift + vol * (rad * cn));
         double call = disc * fmax(st - k, 0.0), put = disc * fmax(k - st, 0.0);
         cs += call; cq += call * call; ps += put; pq += put * put;
 
-        // ---- trial 2p+1 (skipped if N is odd and this is the last pair) ----
         if (2 * p + 1 < n_total) {
             st = s0 * exp(drift + vol * (rad * sn));
             call = disc * fmax(st - k, 0.0); put = disc * fmax(k - st, 0.0);
@@ -69,7 +55,6 @@ void mc_fused(const unsigned long long pair_start,   // first trial pair for thi
         }
     }
 
-    // ---- Block reduction: warp shuffles, then one warp combines the warps ----
     for (int off = 16; off > 0; off >>= 1) {
         cs += __shfl_down_sync(0xffffffffu, cs, off);
         cq += __shfl_down_sync(0xffffffffu, cq, off);
@@ -92,7 +77,7 @@ void mc_fused(const unsigned long long pair_start,   // first trial pair for thi
             ps += __shfl_down_sync(0xffffffffu, ps, off);
             pq += __shfl_down_sync(0xffffffffu, pq, off);
         }
-        if (lane == 0) {   // fixed write order -> results are bit-reproducible
+        if (lane == 0) {
             partial[4 * blockIdx.x + 0] = cs; partial[4 * blockIdx.x + 1] = cq;
             partial[4 * blockIdx.x + 2] = ps; partial[4 * blockIdx.x + 3] = pq;
         }
@@ -104,7 +89,6 @@ _kernel = cp.RawKernel(KERNEL_SRC, "mc_fused")   # compiled on first launch
 
 
 def fused_sums(n, seed, pair_start=0, pair_end=None):
-    """Four sums over trial pairs [pair_start, pair_end). Defaults to all of 0..n-1."""
     if pair_end is None:
         pair_end = (n + 1) // 2
     sm_count = cp.cuda.Device().attributes["MultiProcessorCount"]
@@ -127,10 +111,10 @@ def combine_stats(n, call_sum, call_sumsq, put_sum, put_sumsq):
 
 
 def check_against_reference(seed):
-    """GPU and CPU run the identical algorithm, so sums must agree to ~1e-12."""
+    #GPU and CPU run the identical algorithm, so sums must agree to ~1e-12.
     from gpu.philox_ref import price as ref_price
     ok = True
-    for n in (1_000_000, 1_000_001, 4_000_003):
+    for n in (1000000, 1000001, 4000003):
         gpu, cpu = fused_sums(n, seed), ref_price(n, seed)
         worst = max(abs(g - c) / abs(c) for g, c in zip(gpu, cpu))
         good = worst < 1e-10
@@ -150,7 +134,7 @@ def main():
     if args.check:
         raise SystemExit(0 if check_against_reference(args.seed) else 1)
 
-    fused_sums(1_000_000, 0)          # warm-up: compiles the kernel outside the timed region
+    fused_sums(1000000, 0)
     cp.cuda.Device().synchronize()
 
     start = time.perf_counter()

@@ -6,9 +6,6 @@
 #SBATCH -t 00:40:00
 #SBATCH -o HPC_Logs/spread_test_%j.out
 #SBATCH -e HPC_Logs/spread_test_%j.err
-# Does using 48 cores/node (24 per socket) keep efficiency above 0.90?
-# Everything runs on the same 4 nodes so packed vs spread is a fair
-# comparison. Submit from milan1/milan2/xeonmax.
 
 module purge
 module load slurm

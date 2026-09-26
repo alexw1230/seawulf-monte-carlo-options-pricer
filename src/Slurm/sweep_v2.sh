@@ -4,10 +4,6 @@
 #SBATCH -t 02:30:00
 #SBATCH -o HPC_Logs/sweep_v2_%j.out
 #SBATCH -e HPC_Logs/sweep_v2_%j.err
-# Nodes/tasks are set by submit_sweep_v2.sh:
-#   1 node  -> runs every P in P_VALUES (all on the same node)
-#   2 nodes -> runs P=192 only
-# Submit from milan1/milan2/xeonmax.
 
 module purge
 module load slurm
@@ -29,7 +25,6 @@ N_VALUES=(100000 1000000 10000000 100000000 1000000000 10000000000)
 REPEATS=5
 
 if [ "$SLURM_JOB_NUM_NODES" -eq 1 ]; then
-    # 12 = one SNC NUMA region, 48 = one socket, 96 = full node
     P_VALUES=(1 2 4 8 12 16 24 32 48 64 96)
 else
     P_VALUES=(192)

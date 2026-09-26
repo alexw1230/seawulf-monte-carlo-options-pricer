@@ -7,9 +7,6 @@
 #SBATCH -o HPC_Logs/hbm_ddr_v2_%j.out
 #SBATCH -e HPC_Logs/hbm_ddr_v2_%j.err
 
-# Submit from milan1/milan2/xeonmax (hbm-96core is not reachable from
-# login1/login2). Swap the slurm module if `module load slurm` fails there.
-
 module purge
 module load slurm
 module load mpi4py/latest
@@ -21,7 +18,6 @@ NUMA_LOG=../csv/numa_layout_${SLURM_JOB_ID}.txt
 
 log () { echo "[$(date +%H:%M:%S)] $*"; }
 
-# --- NUMA layout ------------------------------------------------------
 numactl -H > "$NUMA_LOG"
 log "Node: $(hostname)"
 cat "$NUMA_LOG"
@@ -40,7 +36,6 @@ fi
 
 echo "mem,P,N,call,call_se,put,put_se,compute_s,comm_s,total_s" > "$RESULTS"
 
-# run_case LABEL MEMBIND NRANKS N REPEATS
 run_case () {
     local LABEL=$1 MEMBIND=$2 NRANKS=$3 N=$4 REPS=$5
     for i in $(seq 1 "$REPS"); do
@@ -58,17 +53,14 @@ run_case () {
     done
 }
 
-# --- 1. Smoke test: tiny N, both modes. Catches broken binding in seconds.
 SMOKE_N=100000000   # 1e8: ~3s at P=1 on DDR
 run_case ddr "$DDR_NODES" 1 $SMOKE_N 1 || exit 1
 run_case hbm "$HBM_NODES" 1 $SMOKE_N 1 || { log "HBM smoke test failed; see .err"; exit 1; }
 
-# --- 2. Full node first: cheapest and most informative (~10s per run)
 BIG_N=10000000000
 run_case ddr "$DDR_NODES" 96 $BIG_N 5
 run_case hbm "$HBM_NODES" 96 $BIG_N 5
 
-# --- 3. Single core last, 2 repeats (run-to-run spread is ~0.1%)
 run_case ddr "$DDR_NODES" 1 $BIG_N 2
 run_case hbm "$HBM_NODES" 1 $BIG_N 2
 

@@ -6,10 +6,6 @@
 #SBATCH -t 00:45:00
 #SBATCH -o HPC_Logs/freq_test_%j.out
 #SBATCH -e HPC_Logs/freq_test_%j.err
-# Hypothesis: per-core throughput falls past P=48 because the chip lowers
-# its clock as more cores become active (shared power budget).
-# Prediction if true: GHz falls ~25% from P=48 to P=96, IPC stays flat.
-# Submit from milan1/milan2/xeonmax.
 
 module purge
 module load slurm
@@ -25,8 +21,7 @@ SUMMARY=../csv/freq_test_${SLURM_JOB_ID}.csv
 
 log "Node: $(hostname)"
 
-# Weak scaling: fixed work per rank (~15 s), so python startup is a small
-# fraction of what perf measures and per-rank times compare directly.
+
 PER_RANK=1000000000
 BATCH=30000
 P_VALUES=(1 24 48 64 80 96)
@@ -46,10 +41,8 @@ for P in "${P_VALUES[@]}"; do
     N=$((P * PER_RANK))
     rm -f "$OUT"/perf_P${P}_*.txt "$OUT/mhz_P${P}.txt"
 
-    # Sample the P fastest cores' MHz every 2 s while the job runs
-    # (busy cores run fast, idle ones drop to low clocks).
     (
-        sleep 4   # skip python startup
+        sleep 4
         while true; do
             grep "cpu MHz" /proc/cpuinfo | awk '{print $4}' | sort -nr | head -n "$P" \
               | awk '{s+=$1} END {printf "%.0f\n", s/NR}' >> "$OUT/mhz_P${P}.txt"

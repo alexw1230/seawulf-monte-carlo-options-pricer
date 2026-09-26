@@ -7,8 +7,8 @@ import cupy as cp
 from Simulations.single import calculate_st, calculate_payoffs
 
 S0, K, R, SIG, T = 100.0, 100.0, 0.05, 0.20, 1.0
-BYTES_PER_TRIAL = 232   # estimated GPU memory traffic per trial for this version
-
+BYTES_PER_TRIAL = 232
+#naive version
 
 def run(n, batch, rng):
     # Running sums live on the GPU as 0-d arrays. Converting to a Python float
@@ -55,8 +55,7 @@ def main():
     probe = calculate_st(S0, K, R, SIG, T, cp.zeros(4))
     assert isinstance(probe, cp.ndarray), "single.py fell back to the CPU"
 
-    # Warm-up: the first call to each GPU operation compiles it. Do one small
-    # batch first so compilation is never inside the timed region.
+    #Warmup
     run(min(args.batch, 1_000_000), args.batch, cp.random.RandomState(0))
     cp.cuda.Device().synchronize()
 
@@ -67,7 +66,6 @@ def main():
 
     call, call_se, put, put_se = combine_stats(args.n, *sums)
     if args.csv:
-        # Same columns as pricer.py; P = number of GPUs, no MPI communication.
         print(f"1,{args.n},{call:.6f},{call_se:.6f},{put:.6f},{put_se:.6f},"
               f"{elapsed:.6f},0.000000,{elapsed:.6f}")
     else:

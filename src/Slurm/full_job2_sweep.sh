@@ -1,8 +1,8 @@
 CONFIGS=(
-    "96 2"    # 48 cores/node, vs existing P=96 baseline at 96 cores/node (1 node)
-    "96 4"    # 24 cores/node
-    "192 4"   # 48 cores/node, vs existing P=192 baseline at 96 cores/node (2 nodes)
-    "192 8"   # 24 cores/node
+    "96 2"
+    "96 4"
+    "192 4"
+    "192 8"
 )
 
 for cfg in "${CONFIGS[@]}"; do

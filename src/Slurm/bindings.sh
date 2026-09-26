@@ -6,7 +6,6 @@
 #SBATCH -t 00:20:00
 #SBATCH -o HPC_Logs/p192_diag_%j.out
 #SBATCH -e HPC_Logs/p192_diag_%j.err
-# Submit from milan1/milan2/xeonmax:  sbatch src/Slurm/p192_diag.sh
 
 module purge
 module load slurm
@@ -23,15 +22,11 @@ log "Nodes: $SLURM_JOB_NODELIST"
 log "mpirun: $(which mpirun)"
 mpirun --version 2>&1 | head -1
 
-# --- 1. Hyperthreading check ------------------------------------------
-# "Thread(s) per core: 1" -> 96 physical cores, no SMT.
-# "Thread(s) per core: 2" -> ranks 49-96 share physical cores.
+#Hyperthreading check
 log "CPU topology per node:"
 srun -N 2 --ntasks-per-node=1 bash -c \
   'echo "--- $(hostname)"; lscpu | grep -E "^CPU\(s\)|Thread\(s\) per core|Core\(s\) per socket|Socket\(s\)|NUMA node\(s\)"'
 
-# --- 2. Placement under each mapping option --------------------------
-# Good placement = 96 ranks per host and no two ranks on the same core.
 declare -A MAPS=(
   [numa]="--map-by numa --bind-to core"
   [ppr]="--map-by ppr:96:node --bind-to core"
@@ -49,16 +44,13 @@ for NAME in numa ppr default; do
     fi
     echo "Ranks per host:"
     sort "$DIAG/hosts_$NAME.txt" | uniq -c
-    # Binding strings are unique per core on a host, so any duplicate
-    # (host + binding) pair means two ranks were pinned to the same core.
     DUPES=$(grep "MCW rank" "$DIAG/bindings_$NAME.txt" \
             | sed -E 's/^\[([^:]+):[^]]*\] MCW rank [0-9]+ bound to /\1 /' \
             | sort | uniq -d | wc -l)
     echo "Core bindings shared by 2+ ranks: $DUPES (want 0)"
 done
 
-# --- 3. Timing under each mapping option -----------------------------
-# Expect ~1.1 s at N=1e10 if two nodes scale like one (P=96 was 2.23 s).
+
 N=10000000000
 BATCH=30000
 RESULTS=../csv/p192_diag_${SLURM_JOB_ID}.csv

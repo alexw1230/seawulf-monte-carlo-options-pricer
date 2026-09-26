@@ -1,16 +1,3 @@
-"""CPU reference for the fused GPU kernel in fused_pricer.py.
-
-Implements exactly the same algorithm with NumPy so the GPU result can be
-checked against it:
-
-  - Philox4x32-10 counter-based RNG (Salmon et al., "Parallel random numbers:
-    as easy as 1, 2, 3", SC 2011). Trial pair p uses counter p, so every
-    trial's random numbers depend only on (seed, trial index).
-  - Each Philox call gives 4 x 32-bit words -> 2 uniform doubles (53 bits
-    each) -> Box-Muller -> 2 standard normals -> 2 trials.
-
-Run directly to self-test:  python3 src/GPU/philox_ref.py
-"""
 import math
 
 import numpy as np
@@ -23,7 +10,6 @@ TWO26 = 67108864.0
 
 
 def philox4x32_10(c0, c1, c2, c3, k0, k1):
-    """Vectorized Philox4x32-10. Counters are uint32 arrays; keys are uint32."""
     c0, c1, c2, c3 = (np.asarray(c, dtype=np.uint32) for c in (c0, c1, c2, c3))
     k0, k1 = np.uint32(k0), np.uint32(k1)
     with np.errstate(over="ignore"):
@@ -42,7 +28,6 @@ def seed_to_key(seed):
 
 
 def normals_for_pairs(pairs, seed):
-    """Two standard normals per pair index, exactly as the GPU kernel does."""
     pairs = np.asarray(pairs, dtype=np.uint64)
     k0, k1 = seed_to_key(seed)
     zero = np.zeros(pairs.shape, dtype=np.uint32)
@@ -57,7 +42,6 @@ def normals_for_pairs(pairs, seed):
 
 
 def price(n, seed=30, s0=100.0, k=100.0, rate=0.05, sig=0.20, t=1.0, chunk=1_000_000):
-    """Returns (call_sum, call_sumsq, put_sum, put_sumsq) over trials 0..n-1."""
     drift, vol, disc = (rate - 0.5 * sig**2) * t, sig * math.sqrt(t), math.exp(-rate * t)
     sums = np.zeros(4)
     n_pairs = (n + 1) // 2

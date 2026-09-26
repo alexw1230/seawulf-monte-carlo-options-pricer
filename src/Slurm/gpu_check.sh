@@ -5,7 +5,6 @@
 #SBATCH -t 00:10:00
 #SBATCH -o HPC_Logs/gpu_check_%j.out
 #SBATCH -e HPC_Logs/gpu_check_%j.err
-# Submit from the repo root:  sbatch src/Slurm/gpu/gpu_check.sh
 
 module purge
 module load slurm

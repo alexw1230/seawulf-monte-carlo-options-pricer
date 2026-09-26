@@ -18,27 +18,33 @@ mkdir -p "$ROOT/gpu/csv"
 cd "$ROOT/src" || exit 1
 
 log () { echo "[$(date +%H:%M:%S)] $*"; }
+die () { log "STOPPING: $*"; exit 1; }
+
 log "Node: $(hostname)"
+log "fused_pricer.py: $(wc -l < gpu/fused_pricer.py) lines, md5 $(md5sum gpu/fused_pricer.py | cut -c1-32)"
+log "philox_ref.py:   $(wc -l < gpu/philox_ref.py) lines"
 
-# 1. Correctness first: the RNG must pass its known-answer tests, and the
-#    GPU kernel must match the CPU reference before any timing means anything.
 log "Philox known-answer tests:"
-python3 gpu/philox_ref.py || { log "KAT failed; stopping"; exit 1; }
+KAT=$(python3 gpu/philox_ref.py 2>&1); echo "$KAT"
+[ "$(grep -c ': OK$' <<< "$KAT")" -eq 3 ] || die "known-answer tests did not all pass"
+
 log "GPU kernel vs CPU reference:"
-python3 -m gpu.fused_pricer --check || { log "GPU/CPU mismatch; stopping"; exit 1; }
+CHECK=$(python3 -m gpu.fused_pricer --check 2>&1); echo "$CHECK"
+[ "$(grep -c ' OK$' <<< "$CHECK")" -eq 3 ] || die "GPU result does not match CPU reference"
 
-# 2. One readable run.
 log "Readable run, N=1e10:"
-python3 -m gpu.fused_pricer --n 10000000000
+RUN=$(python3 -m gpu.fused_pricer --n 10000000000 2>&1); echo "$RUN"
+grep -q '^Time = ' <<< "$RUN" || die "readable run printed no timing"
 
-# 3. N sweep, 5 reps, same N values as step 2 for direct comparison.
 OUT="$ROOT/gpu/csv/step3_nsweep_${SLURM_JOB_ID}.csv"
 echo "P,N,call,call_se,put,put_se,compute_s,comm_s,total_s" > "$OUT"
 for N in 1000000 10000000 100000000 1000000000 10000000000 100000000000; do
     for i in 1 2 3 4 5; do
-        python3 -m gpu.fused_pricer --n "$N" --csv >> "$OUT"
+        LINE=$(python3 -m gpu.fused_pricer --n "$N" --csv)
+        [[ "$LINE" == 1,"$N",* ]] || die "N=$N rep=$i produced no CSV row (got: '$LINE')"
+        echo "$LINE" >> "$OUT"
     done
-    log "N=$N done (last: $(tail -1 "$OUT" | cut -d, -f7)s)"
+    log "N=$N done (last: $(echo "$LINE" | cut -d, -f7)s)"
 done
 
-log "All done."
+log "All done. Results: $OUT"
