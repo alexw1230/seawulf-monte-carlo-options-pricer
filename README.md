@@ -288,3 +288,57 @@ I also ran a script to test the operational clock frequency at various values of
 | 96 | 2.43
 
 This frequency drop explains the poorer performance of the larger values of P. This decrease is likely due to core temperature and/or power consumption getting too much and causing the CPU to throttle down as a safety measure. By splitting the load among more nodes, each core can run at a higher frequency and thus produce a higher speed. This explains the drop in efficency when more cores are used as in the benchmark, with the fewest number of cores, will have access to more node-level resources and thus will run better.
+
+## The Final Parallel Frontier: GPU Porting ##
+Since this is an Embarrassingly Parallel problem with almost no communication needed, it is a natural fit for a GPU. If 384 CPU cores completed $10^{10}$ simulations in 0.58s, I wanted to see just how far this could be pushed.
+
+| | |
+| --- | --- |
+| Nodes | `a100` |
+| GPU | 1x NVIDIA A100 80GB PCIe |
+| Software | CUDA 12.0 (via CuPy) |
+| Repeats | 5 for each experiment |
+| Timing | Maximum Compute Time, after untimed warmup |
+
+### Straight Port ###
+The first version I ran was a direct translation of `pricer.py` to CUDA. Random numbers were generation using cuRAND directly on the GPU, and the running sums stayed on the GPU until the very end, limiting expensive memory calls.
+
+N = $10^{10}$
+
+| Batch Size | Time (s) |
+| -------- | -------- |
+| $10^6$ | 3.02
+| $10^7$ | 1.93
+| $10^8$ | 1.82
+
+Unlike in the CPU runs, the GPU actually wants large batches due to the overwhelming number of threads in a GPU. However, even with the best batch sizing, it was still much slower than my best CPU tests. This bottleneck is because each NumPy operation is a seperate GPU program that reads and write from GPU memory, causing many unecessary memory calls and drastically slowing the program.
+
+### Custom Fused Kernel ###
+The fix to the afformentioned problem was hand writing a CUDA kernel that handeled all of the operations. Each thread in the GPU must be able to generate random numbers, compute payoffs, and accumulate running sums in its own registers. GPU memory calls are only made once at the end of every block. Random numbers were generated using Philox, and normalized using Box-Muller. A grid-stride loop was used to ensure even work split amongst threads.
+
+| N | Straight Port (s) | Fused Kernel (s) |
+| -------- | -------- | -------- |
+| $10^6$ | 0.00075 | 0.00026
+| $10^7$ | 0.0025 | 0.00034
+| $10^8$ | 0.0188 | 0.0018
+| $10^9$ | 0.183 | 0.0166
+| $10^{10}$ | 1.822 | 0.164
+
+
+Once we get out of the fixed-cost regime ($<10^9$), a speed of ~61 billion trials/s is achieved.
+
+### CPU vs GPU ###
+
+N = $10^{10}$
+
+CPU = `hbm-short-96core` Intel Sapphire Rapids
+GPU = `a100` NVIDIA A100 80GB PCIe
+
+| Type | Hardware | Time (s) | Speedup vs 1 core | 
+| -------- | -------- | -------- | -------- |
+| Single Core CPU | 1 core | 150.46 | 1x
+| Best CPU | 382 cores (4x96) | 0.58 | 259x
+| Straight Port GPU | GPU | 1.82 | 83x
+| Optimized Fused Kernel GPU | GPU | 0.164 | 917x
+
+A single GPU is ~3.3x faster than 382 CPU cores. 
