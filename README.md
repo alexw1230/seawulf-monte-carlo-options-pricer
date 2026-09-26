@@ -18,12 +18,28 @@ In this project, I implemented three versions of the same underlying model, so t
 
 Beyond the baseline scaling, I also investigate the effects of memory bandwidth, cache-sized batching, and the effects of CPU clock throttling on parallel efficiency.
 
+### Problem Statement ###
+Problem 1.4 (Contributed by A. W.)
+
+Objective: Design, implement, and evaluate an MPI-based Monte Carlo simulator for European option
+pricing under Geometric Brownian Motion (GBM). In your experiments, you use P processing cores to
+make N Monte Carlo trials, i.e., simulated price paths. You must select the appropriate P (big enough
+and suitable numbers for the given computer cluster) and sufficiently large N to ensure the accuracy
+of the option price and sensible performance analysis.
+Key Requirements:
+1. Model & Validation: Estimate prices via discounted terminal payoffs, validate against Black–
+Scholes, and quantify standard error/confidence intervals vs. N.
+2. Parallelization: Distribute N trials across P processes using independent random streams. Use
+batching to bound per-process memory independently of N.
+3. Scaling Analysis: Benchmark runtime, speedup, and efficiency across varied N and P; analyze
+scaling trends and overheads.
+
 ## Algorithm Structure ##
 
 ### Core Math ###
 
 Every implementation is built on the same two core pricing functions (see `src/Simulations/single.py`). The code works in both single operation cases and multi-operation cases since it's built entirely out of elementwise
-NumPy operations, with no Python functions that assumes a scalar input.
+NumPy operations, with no Python functions that assume a scalar input.
 
 ```
 FUNCTION calculate_st(S0, K, r, sigma, T, Z):
@@ -47,10 +63,20 @@ To keep everything standardized, I used the same test parameters throughout all 
 ```
 S0 = 100.0 Original Stock Price (USD)
 K = 100.0 Strike Price (USD)
-R = 0.05 Risk Free Rate
-SIG = 0.20 Volitility
+r = 0.05 Risk Free Rate
+SIG = 0.20 Volatility
 T = 1.0 Time (Years)
 ```
+
+Every Monte Carlo estimate is validated against the closed-form Black-Scholes price, which is the exact value of the expectation the simulation estimates:
+
+$$C = S_0\,\Phi(d_1) - K e^{-rT}\,\Phi(d_2), \qquad P = K e^{-rT}\,\Phi(-d_2) - S_0\,\Phi(-d_1)$$
+
+$$d_1 = \frac{\ln(S_0/K) + \left(r + \tfrac{1}{2}\sigma^2\right)T}{\sigma\sqrt{T}}, \qquad d_2 = d_1 - \sigma\sqrt{T}$$
+
+where $\Phi$ is the standard normal CDF, computed as $\Phi(x) = \tfrac{1}{2}\left(1 + \operatorname{erf}(x/\sqrt{2})\right)$.
+
+With the test parameters, $d_1 = 0.35$ and $d_2 = 0.15$, giving reference prices of **10.450584** (call) and **5.573526** (put).
 
 ### Serial Baselines ###
 
@@ -105,6 +131,11 @@ seawulf-monte-carlo-options-pricer/
 │   │   ├── single.py          # core math: calculate_st, calculate_payoffs
 │   │   ├── serial_runs.py     # naive serial baseline
 │   │   └── vectorized.py      # vectorized serial baseline
+│   ├── gpu/
+│   │   ├── gpu_check.py       # checks gpu is connected and working properly
+│   │   ├── gpu_pricer.py      # CuPy direct port
+│   │   ├── fused_pricer.py    # Fused CUDA kernel, final fastest version
+│   │   └── philox_ref.py      # Numpy Reference to verify kernel
 │   └── Slurm/
 │       └── *.sh               # Bash files for various experiments
 │       
@@ -118,8 +149,8 @@ seawulf-monte-carlo-options-pricer/
 
 > **Note on `HPC_Logs/`**: the contents of this directory are gitignored
 
-### Compilation & execution ###
-
+### Basic Compilation & Execution ###
+> Note this only
 **Dependencies**: `numpy`, `mpi4py` (SeaWulf via `module load mpi4py/latest`).
 ```bash
 pip install numpy
@@ -152,13 +183,13 @@ mpirun -n $SLURM_NTASKS python3 -m Seawulf.pricer --n <N> --batch <BATCH> --seed
 `--n`, `--batch`, and `--seed` are optional (default to 10,000,000 / 30,000 / 30 respectively)
 
 ## Experiment Structure ##
-During the course of the experiment, I used many different nodes and configuations, but for the final experiments reported, the experimental setup and hardware are as follows:
+During the course of the experiment, I used many different nodes and configurations, but for the final experiments reported, the experimental setup and hardware are as follows:
 
 | | |
 | --- | --- |
 | Nodes | `hbm-short-96core` Intel Sapphire Rapids |
 | Cores | 96 core capacity |
-| Memory | 256 GB DDR5, 128 GB HBM (Independently Addressible) |
+| Memory | 256 GB DDR5, 128 GB HBM (Independently Addressable) |
 | Repeats | 5 for each experiment |
 | Timing | Maximum Compute Time amongst cores|
 
@@ -181,7 +212,7 @@ $P = 1$
 | $10^9$ | 10.450518 | 0.000465	| 5.573629	| 0.000274
 | $10^{10}$ | 10.450502 | 0.000147 | 5.573508 | 0.000087
 
-The standard error falls by ~3x for each 10x in N. For every value of N, the calculated value of both the call and put option is well within the error bars.
+The standard error falls by ~3x for each 10x in N. For every value of N, the calculated value of both the call and put option is within the error bars.
 
 ### Single Node Scaling ###
 
@@ -206,7 +237,7 @@ $Efficiency = \frac{\frac{T(1)}{T(P)}}{P}, Efficiency >= 0 *$
 
 From this data, it is clear that for P values up and to 48, we achieve near-linear scaling (94%+). However, when the full allocation of cores is utilized, efficiency appears to do far worse, only ~70% efficiency.
 
-> Note that throughout these runs, I have also measured communication time independently, and it has never exceeded more than 0.7% of runtime even in the worst cases. This makes sense since there is only communication at the beginning and end of the program, as it is an Embarrassignly Parallel task.
+> Note that throughout these runs, I have also measured communication time independently, and it has never exceeded more than 0.7% of runtime even in the worst cases. This makes sense since there is only communication at the end of the program, as it is an Embarrassingly Parallel task.
 
 Other lower values of N were also tested at various P
 
@@ -215,18 +246,18 @@ Efficiency at various N
 | P | $10^{10}$ | $10^9$ | $10^8$ | $10^7$ |
 | -------- | -------- | -------- | -------- | -------- |
 | 1 | 1.00 | 1.00 | 1.00 | 1.00
-| 16 | 0.95 | 0.93 | 0.89 | 0.79
+| 8 | 0.95 | 0.93 | 0.89 | 0.79
 | 32 | 0.95 | 0.93 | 0.87 | 0.64
 | 48 | 0.94 | 0.91 | 0.83 | 0.56
 | 96 | 0.70 | 0.69 | 0.60 | 0.30
 
-From this data, we can observe that efficency degrades sharply as N gets smaller, as overhead fixed costs become a larger portion of the total compute time.
+From this data, we can observe that efficiency degrades sharply as N gets smaller, as overhead fixed costs become a larger portion of the total compute time.
 
 After implementing the lessons learned from the experiments in **Memory Bandwidth & Batching** and **Full Load & CPU Clock Throttling**, the final, best results are as follows:
 
 Once again, these are all using $N = 10^{10}$, batch = $3 * 10^4$, DDR5, `hbm-short-96core`. The efficiency score is calculated against T(1) with these same parameters.
 
-### Most Efficient (Excluding the trivial $P=1$) ###
+### Most Efficient ($P >= 96$) ###
 | Layout (Node x Core/Node) | Total Cores P | Time (s) | Efficiency | 
 | -------- | -------- | -------- | -------- |
 | 2 x 48 | 96 | 1.68 | **0.95**
@@ -236,7 +267,7 @@ Once again, these are all using $N = 10^{10}$, batch = $3 * 10^4$, DDR5, `hbm-sh
 | -------- | -------- | -------- | -------- |
 | 4 x 96 | 384 | **0.58** | 0.69
 
-### Best High Core Count ($>= 2$ full nodes) ###
+### Best High Core Count ($P >= 192$) ###
 | Layout (Node x Core/Node) | Total Cores P | Time (s) | Efficiency | 
 | -------- | -------- | -------- | -------- |
 | 4 x 48 | 192 | **0.86** | **0.92**
@@ -260,9 +291,9 @@ $P = 96$, $N = 10^{10}$
 | $10^6$ | 7.41 | 3.54 | 2.10x | 1x
 | $10^7$ | 9.51 | 3.91 | 2.43x | 0.78x
 
-> Note the value $3 * 10^4$ was randomly selected by me between $10^4$ and $10^5$. There is probably a better value out there, but a local minimum of this level of precision is sufficent here.
+> Note the value $3 * 10^4$ was randomly selected by me between $10^4$ and $10^5$. There is probably a better value out there, but a local minimum of this level of precision is sufficient here.
 
-At the original batch size, the HBM more than doubled its speed. We also can notice that at smaller batch sizes, whether we use HBM or DDR5 becomes irrelevant because memory bandwidth is no longer the limiting factor. However, notice that at very small batch sizes, ($<= 10^3$), there is also a significant slowdown due to overhead running too often. Using an semi-optimal batch size alone give us a ~3.3x speedup compared to the original batch size, as well as an efficiency of around 70%. This is why in **Final Results** and in experiments after this section, all batches are $3 * 10^4$ in size. Also note that since HBM didn't provide any meaningful speedup compared to DDR5, DDR5 is used everywhere else.
+At the original batch size, the HBM more than doubled its speed. We also can notice that at smaller batch sizes, whether we use HBM or DDR5 becomes irrelevant because memory bandwidth is no longer the limiting factor. However, notice that at very small batch sizes, ($<= 10^3$), there is also a significant slowdown due to overhead running too often. Using a semi-optimal batch size alone gives us a ~3.3x speedup compared to the original batch size, as well as an efficiency of around 70%. This is why in **Final Results** and in experiments after this section, all batches are $3 * 10^4$ in size. Also note that since HBM didn't provide any meaningful speedup compared to DDR5, DDR5 is used everywhere else.
 
 ### Full Load & CPU Clock Throttling ###
 
@@ -273,11 +304,11 @@ Notice in **Single Node Scaling**, efficiency sharply dropped when $P > 48$ from
 | 1 x 48 | 48 | 3.36 | 0.95 
 | 2 x 48 | 96 | 1.68 | 0.95
 | 4 x 48 | 192 | 0.86 | 0.92 
-| 1 x 96 | 96 | 2.24 | 0.70
+| 1 x 96 | 96 | 2.23 | 0.70
 | 2 x 96 | 192 | 1.13 | 0.71
 | 4 x 96 | 384 | 0.58 | 0.69
 
-Notice how as the number of nodes increases, the efficiency barely changes. However, whenever we use full nodes it drops ~15-20% in terms of efficiency compared to half nodes of the same number of cores.
+Notice how as the number of nodes increases, the efficiency barely changes. However, whenever we use full nodes it drops ~20-25% in terms of efficiency compared to half nodes of the same number of cores.
 
 I also ran a script to test the operational clock frequency at various values of P.
 
@@ -287,7 +318,7 @@ I also ran a script to test the operational clock frequency at various values of
 | 48 | 3.06
 | 96 | 2.43
 
-This frequency drop explains the poorer performance of the larger values of P. This decrease is likely due to core temperature and/or power consumption getting too much and causing the CPU to throttle down as a safety measure. By splitting the load among more nodes, each core can run at a higher frequency and thus produce a higher speed. This explains the drop in efficency when more cores are used as in the benchmark, with the fewest number of cores, will have access to more node-level resources and thus will run better.
+This frequency drop explains the poorer performance of the larger values of P. This decrease is likely due to core temperature and/or power consumption getting too much and causing the CPU to throttle down as a safety measure. By splitting the load among more nodes, each core can run at a higher frequency and thus produce a higher speed. The baseline P = 1 run gets the chip's full single-core boost, which a fully loaded chip can't physically sustain.
 
 ## The Final Parallel Frontier: GPU Porting ##
 Since this is an Embarrassingly Parallel problem with almost no communication needed, it is a natural fit for a GPU. If 384 CPU cores completed $10^{10}$ simulations in 0.58s, I wanted to see just how far this could be pushed.
@@ -298,34 +329,34 @@ Since this is an Embarrassingly Parallel problem with almost no communication ne
 | GPU | 1x NVIDIA A100 80GB PCIe |
 | Software | CUDA 12.0 (via CuPy) |
 | Repeats | 5 for each experiment |
-| Timing | Maximum Compute Time, after untimed warmup |
+| Timing | GPU Compute Time, synced, after untimed warmup |
 
 ### Straight Port ###
-The first version I ran was a direct translation of `pricer.py` to CUDA. Random numbers were generation using cuRAND directly on the GPU, and the running sums stayed on the GPU until the very end, limiting expensive memory calls.
+The first version I ran was a direct translation of `pricer.py` to Cupy. Random numbers were generated using cuRAND directly on the GPU, and the running sums stayed on the GPU until the very end, so only four numbers are ever copied back to the CPU.
 
 N = $10^{10}$
 
 | Batch Size | Time (s) |
 | -------- | -------- |
-| $10^6$ | 3.02
+| $10^6$ | 3.04
 | $10^7$ | 1.93
 | $10^8$ | 1.82
 
-Unlike in the CPU runs, the GPU actually wants large batches due to the overwhelming number of threads in a GPU. However, even with the best batch sizing, it was still much slower than my best CPU tests. This bottleneck is because each NumPy operation is a seperate GPU program that reads and write from GPU memory, causing many unecessary memory calls and drastically slowing the program.
+Unlike in the CPU runs, the GPU actually wants large batches due to the overwhelming number of threads in a GPU. However, even with the best batch sizing, it was still much slower than my best CPU tests. This bottleneck is because each NumPy operation is a separate GPU program that reads and writes from GPU memory, causing many unnecessary memory calls and drastically slowing the program.
 
 ### Custom Fused Kernel ###
-The fix to the afformentioned problem was hand writing a CUDA kernel that handeled all of the operations. Each thread in the GPU must be able to generate random numbers, compute payoffs, and accumulate running sums in its own registers. GPU memory calls are only made once at the end of every block. Random numbers were generated using Philox, and normalized using Box-Muller. A grid-stride loop was used to ensure even work split amongst threads.
+The fix to the aforementioned problem was hand writing a CUDA kernel that handled all of the operations. Each thread in the GPU must be able to generate random numbers, compute payoffs, and accumulate running sums in its own registers. GPU memory calls are only made once at the end of every block. Random numbers were generated using Philox, and converted to normal random numbers using Box-Muller. A grid-stride loop was used to ensure even work split amongst threads.
 
 | N | Straight Port (s) | Fused Kernel (s) |
 | -------- | -------- | -------- |
 | $10^6$ | 0.00075 | 0.00026
-| $10^7$ | 0.0025 | 0.00034
+| $10^7$ | 0.0025 | 0.00033
 | $10^8$ | 0.0188 | 0.0018
 | $10^9$ | 0.183 | 0.0166
 | $10^{10}$ | 1.822 | 0.164
 
 
-Once we get out of the fixed-cost regime ($<10^9$), a speed of ~61 billion trials/s is achieved.
+Once we get out of the fixed-cost regime ($<10^9$), a speed of ~61 billion trials/s is achieved. All results still fell within the error range of the Black-Scholes derived solutions.
 
 ### CPU vs GPU ###
 
@@ -337,8 +368,8 @@ GPU = `a100` NVIDIA A100 80GB PCIe
 | Type | Hardware | Time (s) | Speedup vs 1 core | 
 | -------- | -------- | -------- | -------- |
 | Single Core CPU | 1 core | 150.46 | 1x
-| Best CPU | 382 cores (4x96) | 0.58 | 259x
+| Best CPU | 384 cores (4x96) | 0.58 | 259x
 | Straight Port GPU | GPU | 1.82 | 83x
 | Optimized Fused Kernel GPU | GPU | 0.164 | 917x
 
-A single GPU is ~3.3x faster than 382 CPU cores. 
+A single optimized GPU is ~3.5x faster than 384 CPU cores.
