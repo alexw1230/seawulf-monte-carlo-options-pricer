@@ -141,16 +141,18 @@ seawulf-monte-carlo-options-pricer/
 │       
 ├── HPC_Logs/                  # Seawulf Logs
 ├── Images/                    # Images for README
+├── csv/
 │                               
 ├── README.md
 ├── .gitignore
 └── requirements.txt
 ```
 
-> **Note on `HPC_Logs/`**: the contents of this directory are gitignored
+> **Note on `HPC_Logs/ and csv/`**: the contents of these directory are gitignored and should be empty
 
 ### Basic Compilation & Execution ###
-> Note this only
+> Note this only covers some basic execution, not too in depth
+
 **Dependencies**: `numpy`, `mpi4py` (SeaWulf via `module load mpi4py/latest`).
 ```bash
 pip install numpy
